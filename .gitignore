@@ -1,0 +1,5 @@
+# LATEX AUX FILES
+*.aux
+*.log
+*.out
+*.gz
