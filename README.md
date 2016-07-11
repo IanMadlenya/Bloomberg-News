@@ -12,7 +12,7 @@ Schema is as follows:
 [PERMNO,date,NAMEENDT,SHRCD,EXCHCD,SICCD,NCUSIP,TICKER,COMNAM,SHRCLS,TSYMBOL,NAICS,PRIMEXCH,TRDSTAT,SECSTAT,PERMCO,ISSUNO,HEXCD,HSICCD,CUSIP,DCLRDT,DLAMT,DLPDT,DLSTCD,NEXTDT,PAYDT,RCRDDT,SHRFLG,HSICMG,HSICIG,DISTCD,DIVAMT,FACPR,FACSHR,ACPERM,ACCOMP,NWPERM,DLRETX,DLPRC,DLRET,TRTSCD,NMSIND,MMCNT,NSDINX,BIDLO,ASKHI,PRC,VOL,RET,BID,ASK,SHROUT,CFACPR,CFACSHR,OPENPRC,NUMTRD,RETX,vwretd,vwretx,ewretd,ewretx,sprtrn]
 ```
 Data types and comments available at [CRSP's official site](http://www.crsp.com/products/documentation/stock-data-structure).
-of which we produce a filtered dataframe of the form
+We produce a filtered dataframe of the form
 ```
 [date: %Y%m%d, TICKER: str, OPNPRC: double, PRC: double, RET: double, BIDLO: double, ASKHI: double, VOL: long]
 ```
