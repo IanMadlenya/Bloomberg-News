@@ -3,3 +3,6 @@
 *.log
 *.out
 *.gz
+
+# OTHER
+.DS_Store
