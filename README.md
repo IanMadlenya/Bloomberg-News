@@ -14,7 +14,7 @@ Schema is as follows:
 Data types and comments available at [CRSP's official site](http://www.crsp.com/products/documentation/stock-data-structure).
 We produce a filtered dataframe of the form
 ```
-[PERMNO: long, date: %Y%m%d, SHRCD: long, EXCHCD: long, SICCD: long, TICKER: str, SHROUT: long, OPNPRC: double, PRC: double, RET: double, BIDLO: double, ASKHI: double, VOL: long]
+[PERMNO: long, date: %Y%m%d, SHRCD: long, EXCHCD: long, SICCD: long, TICKER: str, SHROUT: long, OPENPRC: double, PRC: double, RET: double, BIDLO: double, ASKHI: double, VOL: long]
 ```
 We disambiguate the column names as follows
 - `PERMNO`: Unique security identifier.
@@ -22,7 +22,7 @@ We disambiguate the column names as follows
 - `EXCHCD`: Exchange code.
 - `SICCD`: Standard Industrial Classification code (for mapping securities to industries).
 - `SHROUT`: Shares outstanding (in 1000’s).
-- `OPNPRC`: Daily opening price.
+- `OPENPRC`: Daily opening price.
 - `PRC`: Daily closing price.
 - `RET`: Daily return.
 - `BIDLO`: Daily lowest bid price.
@@ -80,3 +80,44 @@ subject matter (e.g. POL AR for politics and Argentina). Mapping TOPIC_CODE to h
 **For relational querying.** Like in the CRSP daily prices case, the news may simply be partitioned by `RIC`, thereby generating a table of news events for each ticker.
 
 **For NoSQL solution.** The archive data may be partitioned by quarter and compressed to `ORC`. In the modeling stages, the relevant periods may be extracted and merged.
+
+### Issues with Spark 1.6 on EC2
+
+**AWS CREDENTIALS BUG**
+
+Even when including `copy_aws_credentials`, permissions are not passed to the cluster. After `ssh` into `root@master`, export `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for access to S3 etc.
+
+**SPARK VERBOSITY**
+
+Spark is by default verbose. To show warnings only, run the following
+
+```
+cd $SPARK_HOME/conf/
+mv ./log4j.properties.template ./log4j.properties
+vim log4j.properties
+```
+
+then simply change `log4j.rootCategory=INFO` to `log4j.rootCategory=WARN`.
+
+**IMPORTING SPARK-CSV PACKAGE**
+
+To import the `spark-csv` package, launch spark as follows
+
+```
+$SPARK_HOME/bin/<spark-script> --packages com.databricks:spark-csv_2.10:1.4.0
+```
+
+**BROKEN SQLCONTEXT**
+
+For both `spark-shell` and `pyspark`, there are issues with the `sqlContext` instantiated upon launch of the script in `$SPARK_HOME/bin/`. Therefore, after launching `spark-shell`, run
+
+```
+val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+```
+
+or, for `pyspark`,
+
+```
+from pyspark.sql import SQLContext
+sqlContext = SQLContext(sc)
+```
