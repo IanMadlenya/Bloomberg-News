@@ -72,19 +72,6 @@ val CRSPData = sqlContext.
 	// |-- ewretx: double (nullable = true)
 	// |-- sprtrn: double (nullable = true)
 
-CRSPData.select("PERMNO","SHRCD","EXCHCD","SICCD","SHROUT","OPENPRC",
+CRSPData.select("PERMNO","date", "SHRCD","EXCHCD","SICCD","TICKER","SHROUT","OPENPRC",
 	"PRC","RET","BIDLO","ASKHI","VOL").write.format("parquet").
 	save("s3n://bloombergprices/CRSP/model")
-
-
-
-
-
-
-
-
-
-
-
-
-
