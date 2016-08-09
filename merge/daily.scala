@@ -1,11 +1,16 @@
 // takes ticker merges news with prices
 
+var ticker = "ADS" // or sys.arg
+
+// import statements
+
 val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 import sqlContext.implicits._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.functions.udf
+import java.text.SimpleDateFormat
+import java.util.{TimeZone, Calendar}
 import java.sql.Date
-var ticker = "ADS" // or sys.arg
 
 // CRSP
 
@@ -27,15 +32,48 @@ val CRSP = sqlContext.read.format("parquet").
 
 // TRNA
 
-val TRNADateformat = new java.text.SimpleDateFormat("dd MMM yyyy")
+//// TIMESTAMP PROCESSORS
 
-def TRNADates(dateString: String): java.sql.Date = {
-	val dateTime = TRNADateformat.parse(dateString).getTime
-	val sqlDate = new java.sql.Date(dateTime)
-	return sqlDate
+val TRNATimeStamp = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX") // broadcast this
+val bcTRNATimeStamp = sc.broadcast(TRNATimeStamp)
+
+val cal = Calendar.getInstance(TimeZone.getTimeZone("America/New_York")) // broadcast this
+val bcCal = sc.broadcast(cal)
+
+//// ISO8601 TO TRADING DAY
+
+def tradingDay(iso8601String: String,
+               dateParser: java.text.SimpleDateFormat,
+               cal: java.util.Calendar): java.sql.Date = {
+    
+    val dateTime = dateParser.parse(iso8601String) // parse the dateString
+    cal.setTime(dateTime) // initialize the calendar
+    
+    val hour = cal.get(Calendar.HOUR_OF_DAY) // hour of day in NY
+    val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK) // dayOfWeek in NY
+    
+    if (dayOfWeek >= 2 && dayOfWeek <= 5 && hour >= 16) { // afterhours M-Th
+        cal.add(Calendar.DAY_OF_WEEK, 1)
+    }
+    else if (dayOfWeek == 6 && hour >= 16) { // afterhours F to M
+        cal.add(Calendar.DAY_OF_WEEK, 3)
+    }
+    else if (dayOfWeek == 7 || dayOfWeek == 1) { // weekend to M
+        val daysToMonday = 2 - (dayOfWeek%7)
+        cal.add(Calendar.DAY_OF_WEEK, daysToMonday)
+    }
+    
+    val sqlDate = new java.sql.Date(cal.getTimeInMillis) // get day for SQL
+    return sqlDate
 }
 
-val TRNADatesUDF = udf(TRNADates(_:String))
+//// UDF OF ISO8601 TO TRADING DAY
+
+val tradingDayUDF = udf(tradingDay(_:String,
+               _:org.apache.spark.broadcast.TorrentBroadcast,
+               _:org.apache.spark.broadcast.TorrentBroadcast))
+
+//// PARSE TICKER
 
 def getTicker(RIC: String): String = {
 	return RIC.split("\\.")(0)
@@ -43,11 +81,15 @@ def getTicker(RIC: String): String = {
 
 val getTickerUDF = udf(getTicker(_:String))
 
+//// SCHEMA OF PROCESSED DF
+
 case class TRNARow(storyDate: java.sql.Date, relevance: Double,
 			senti: Double, pos: Double, neut: Double, neg: Double,
 			sentWords: Double, totWords: Double)
 
-val TRNA = Array("2010","2011","2012","2014","2015").
+//// MERGE PROGRAM
+
+val TRNA = Array("2010","2011","2012","2013","2014","2015").
 	map{ year => 
 		sqlContext.read.format("parquet").
 		load("s3n://bloombergprices/TRNA/model" + year) }.
@@ -55,28 +97,29 @@ val TRNA = Array("2010","2011","2012","2014","2015").
 		withColumn("STOCK_RIC", getTickerUDF($"STOCK_RIC")).
 		withColumnRenamed("STOCK_RIC", "TICKER").
 		filter($"TICKER"===ticker).
-		withColumn("STORY_DATE", TRNADatesUDF($"STORY_DATE")).
-		select("STORY_DATE","RELEVANCE","SENTIMENT",
+		withColumn("TIMESTAMP", tradingDayUDF($"TIMESTAMP", bcTRNATimeStamp, bcCal)).
+		withColumnRenamed("TIMESTAMP", "TAKE_TRADING_DAY"').
+		select("TAKE_TRADING_DAY","RELEVANCE","SENTIMENT",
 			"SENT_POS","SENT_NEUT","SENT_NEG",
 			"SENT_WORDS","TOT_WORDS").
-		map{ case Row(storyDate: java.sql.Date, relevance: Double,
+		map{ case Row(takeTradingDay: java.sql.Date, relevance: Double,
 			senti: Int, pos: Double, neut: Double, neg: Double,
 			sentWords: Int, totWords: Int) =>
-			(storyDate, List(relevance, relevance*senti.toDouble, relevance*pos,
+			(takeTradingDay, List(relevance, relevance*senti.toDouble, relevance*pos,
 			relevance*neut, relevance*neg,
 			relevance*sentWords, relevance*totWords, 1)) }.
 			reduceByKey((_, _).zipped.map{_+_}).
-			map{ case (storyDate, news) =>
+			map{ case (takeTradingDay, news) =>
 				val count = news.last
-				(storyDate, news.map{ metric => metric/count }) }.
-			map{ case (storyDate, news) =>
-				TRNARow(storyDate, news(0), news(1), news(2), news(3),
+				(takeTradingDay, news.map{ metric => metric/count }) }.
+			map{ case (takeTradingDay, news) =>
+				TRNARow(takeTradingDay, news(0), news(1), news(2), news(3),
 					news(4), news(5), news(6))}.toDF
 
 // merge
 
-val export = CRSP.join(TRNA, CRSP("date")===TRNA("storyDate"), "left_outer").
-	drop($"storyDate").
+val export = CRSP.join(TRNA, CRSP("date")===TRNA("takeTradingDay"), "left_outer").
+	drop($"takeTradingDay").
 	sort(desc("date"))
 
 export.cache()
