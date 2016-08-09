@@ -43,8 +43,8 @@ val bcCal = sc.broadcast(cal)
 //// ISO8601 TO TRADING DAY
 
 def tradingDay(iso8601String: String,
-               dateParser: java.text.SimpleDateFormat,
-               cal: java.util.Calendar): java.sql.Date = {
+               dateParser: java.text.SimpleDateFormat = bcTRNATimeStamp.value,
+               cal: java.util.Calendar = bcCal.value): java.sql.Date = {
     
     val dateTime = dateParser.parse(iso8601String) // parse the dateString
     cal.setTime(dateTime) // initialize the calendar
@@ -69,9 +69,7 @@ def tradingDay(iso8601String: String,
 
 //// UDF OF ISO8601 TO TRADING DAY
 
-val tradingDayUDF = udf(tradingDay(_:String,
-               _:org.apache.spark.broadcast.TorrentBroadcast,
-               _:org.apache.spark.broadcast.TorrentBroadcast))
+val tradingDayUDF = udf(tradingDay(_:String))
 
 //// PARSE TICKER
 
@@ -94,11 +92,9 @@ val TRNA = Array("2010","2011","2012","2013","2014","2015").
 		sqlContext.read.format("parquet").
 		load("s3n://bloombergprices/TRNA/model" + year) }.
 		reduce( (rdd1, rdd2) => rdd1.unionAll(rdd2) ).
-		withColumn("STOCK_RIC", getTickerUDF($"STOCK_RIC")).
-		withColumnRenamed("STOCK_RIC", "TICKER").
+		withColumn("TICKER", getTickerUDF($"STOCK_RIC")).
 		filter($"TICKER"===ticker).
-		withColumn("TIMESTAMP", tradingDayUDF($"TIMESTAMP", bcTRNATimeStamp, bcCal)).
-		withColumnRenamed("TIMESTAMP", "TAKE_TRADING_DAY"').
+		withColumn("TAKE_TRADING_DAY", tradingDayUDF($"TIMESTAMP")).
 		select("TAKE_TRADING_DAY","RELEVANCE","SENTIMENT",
 			"SENT_POS","SENT_NEUT","SENT_NEG",
 			"SENT_WORDS","TOT_WORDS").
@@ -109,10 +105,10 @@ val TRNA = Array("2010","2011","2012","2013","2014","2015").
 			relevance*neut, relevance*neg,
 			relevance*sentWords, relevance*totWords, 1)) }.
 			reduceByKey((_, _).zipped.map{_+_}).
-			map{ case (takeTradingDay, news) =>
+		map{ case (takeTradingDay, news) =>
 				val count = news.last
 				(takeTradingDay, news.map{ metric => metric/count }) }.
-			map{ case (takeTradingDay, news) =>
+		map{ case (takeTradingDay, news) =>
 				TRNARow(takeTradingDay, news(0), news(1), news(2), news(3),
 					news(4), news(5), news(6))}.toDF
 
