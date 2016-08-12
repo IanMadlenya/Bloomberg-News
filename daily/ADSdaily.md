@@ -43,8 +43,8 @@
 
 **Sentiment Time Series**
 
-![](/Users/mustafameisa/Downloads/logInt.pdf)
-![](/Users/mustafameisa/Downloads/Int.pdf)
+![](https://github.com/mustafameisa/Bloomberg-News/tree/master/daily/logInt.pdf)
+![](https://github.com/mustafameisa/Bloomberg-News/tree/master/daily/Int.pdf)
 
 ### Regression Analysis
 
@@ -72,4 +72,4 @@ sigma^2 estimated as 3.109e-08:  log likelihood = 10901.35,  aic = -21786.7
 
 **Model Fit.**
 
-![](/Users/mustafameisa/Downloads/ar302.pdf)
+![](https://github.com/mustafameisa/Bloomberg-News/tree/master/daily/ar302.pdf)
