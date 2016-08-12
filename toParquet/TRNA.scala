@@ -1,7 +1,7 @@
 // for filtering columns on master csv and writing to disk as orc
 
 val rootBucket = "s3n://bloombergprices/TRNA/"
-val years = Array("2010", "2011", "2012", "2014", "2015")
+val years = Array("2010", "2011", "2012", "2013", "2014", "2015")
 
 years.map{ year =>
 	val path = rootBucket + "archive" + year + ".txt"

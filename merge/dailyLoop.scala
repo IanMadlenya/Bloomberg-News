@@ -1,6 +1,8 @@
+// SAME AS DAILY, BUT FOR DOING MULTIPLE TICKERS AT ONCE
+
 // takes ticker merges news with prices
 
-var ticker = "CVX" // or sys.arg
+val tickers = Array("AAPL", "ARRS", "CVX", "LNKD", "AIG")
 
 // import statements
 
@@ -23,12 +25,6 @@ def CRSPDates(dateInt: Int): java.sql.Date = {
 }
 
 val CRSPDatesUDF = udf(CRSPDates(_:Int))
-
-val CRSP = sqlContext.read.format("parquet").
-	load("s3n://bloombergprices/CRSP/model").
-	filter($"TICKER"===ticker).
-	withColumn("date", CRSPDatesUDF($"date")).
-	drop($"PERMNO").drop($"TICKER")
 
 // TRNA
 
@@ -87,40 +83,50 @@ case class TRNARow(storyDate: java.sql.Date, relevance: Double,
 
 //// MERGE PROGRAM
 
-val TRNA = Array("2010","2011","2012","2013","2014","2015").
-	map{ year => 
-		sqlContext.read.format("parquet").
-		load("s3n://bloombergprices/TRNA/model" + year) }.
-		reduce( (rdd1, rdd2) => rdd1.unionAll(rdd2) ).
-		withColumn("TICKER", getTickerUDF($"STOCK_RIC")).
+for ( ticker <- tickers ) {
+
+	val CRSP = sqlContext.read.format("parquet").
+		load("s3n://bloombergprices/CRSP/model").
 		filter($"TICKER"===ticker).
-		withColumn("TAKE_TRADING_DAY", tradingDayUDF($"TIMESTAMP")).
-		select("TAKE_TRADING_DAY","RELEVANCE","SENTIMENT",
-			"SENT_POS","SENT_NEUT","SENT_NEG",
-			"SENT_WORDS","TOT_WORDS").
-		map{ case Row(takeTradingDay: java.sql.Date, relevance: Double,
-			senti: Int, pos: Double, neut: Double, neg: Double,
-			sentWords: Int, totWords: Int) =>
-			(takeTradingDay, List(relevance, relevance*senti.toDouble, relevance*pos,
-			relevance*neut, relevance*neg,
-			relevance*sentWords, relevance*totWords, 1)) }.
-		reduceByKey((_, _).zipped.map{_+_}).
-		map{ case (takeTradingDay, news) =>
-				val count = news.last
-				(takeTradingDay, news.map{ metric => metric/count }) }.
-		map{ case (takeTradingDay, news) =>
-				TRNARow(takeTradingDay, news(0), news(1), news(2), news(3),
-					news(4), news(5), news(6))}.toDF
+		withColumn("date", CRSPDatesUDF($"date")).
+		drop($"PERMNO").drop($"TICKER")
 
-// merge
+	val TRNA = Array("2010","2011","2012","2013","2014","2015").
+		map{ year => 
+			sqlContext.read.format("parquet").
+			load("s3n://bloombergprices/TRNA/model" + year) }.
+			reduce( (rdd1, rdd2) => rdd1.unionAll(rdd2) ).
+			withColumn("TICKER", getTickerUDF($"STOCK_RIC")).
+			filter($"TICKER"===ticker).
+			withColumn("TAKE_TRADING_DAY", tradingDayUDF($"TIMESTAMP")).
+			select("TAKE_TRADING_DAY","RELEVANCE","SENTIMENT",
+				"SENT_POS","SENT_NEUT","SENT_NEG",
+				"SENT_WORDS","TOT_WORDS").
+			map{ case Row(takeTradingDay: java.sql.Date, relevance: Double,
+				senti: Int, pos: Double, neut: Double, neg: Double,
+				sentWords: Int, totWords: Int) =>
+				(takeTradingDay, List(relevance, relevance*senti.toDouble, relevance*pos,
+				relevance*neut, relevance*neg,
+				relevance*sentWords, relevance*totWords, 1)) }.
+				reduceByKey((_, _).zipped.map{_+_}).
+			map{ case (takeTradingDay, news) =>
+					val count = news.last
+					(takeTradingDay, news.map{ metric => metric/count }) }.
+			map{ case (takeTradingDay, news) =>
+					TRNARow(takeTradingDay, news(0), news(1), news(2), news(3),
+						news(4), news(5), news(6))}.toDF
 
-val export = CRSP.join(TRNA, CRSP("date")===TRNA("storyDate"), "left_outer").
-	drop($"storyDate").
-	sort(desc("date"))
+	// merge
 
-export.cache()
+	val export = CRSP.join(TRNA, CRSP("date")===TRNA("storyDate"), "left_outer").
+		drop($"storyDate").
+		sort(desc("date"))
 
-export.coalesce(1).write.format("csv").
-save("s3n://bloombergprices/dailyMerge/"+ticker)
+	export.cache()
 
-export.unpersist()
+	export.coalesce(1).write.format("csv").
+	save("s3n://bloombergprices/dailyMerge/"+ticker)
+
+	export.unpersist()
+
+}
