@@ -15,38 +15,48 @@ norma = function(x) {
 
 ### LOG INTEGRATED
 
-plot(date, cumprod(1+RET/OPEN), type="l", col="blue", lwd=2, xlab="",
+rCP = function(x) {
+	rev(cumprod(rev(1 + x)))
+}
+
+plot(date, rCP(RET), type="l", col="blue", lwd=2, xlab="",
 	ylab="NORMALIZED RETURNS + SENTIMENT", main="LOG-INTEGRATED SENTIMENT AND PRICE")
 par(new=T)
-plot(date, cumprod(1+POS), type="l", col="green", lwd=2, xlab="",
+plot(date, POS, type="l", col="green", lwd=.5, xlab="",
 	ylab="", main="", axes=F)
 par(new=T)
-plot(date, cumprod(1+NEG), type="l", col="red", lwd=2, xlab="",
+plot(date, NEG, type="l", col="red", lwd=.5, xlab="",
 	ylab="", main="", axes=F)
 par(new=T)
-plot(date, cumprod(1+NEUT), type="l", col="gray", lwd=2, xlab="",
+plot(date, NEUT, type="l", col="gray", lwd=.5, xlab="",
 	ylab="", main="", axes=F)
 par(new=T)
-plot(date, cumprod(1+SENTI), type="l", col="purple", lwd=2, xlab="",
+plot(date, rCP(SENTI-mean(SENTI)), type="l", col="purple", lwd=2, xlab="",
 	ylab="", main="", axes=F)
 legend("top",col=c("blue","green","red","gray","purple"),
 	c("RETURNS", "POSITIVE SENTI", "NEUTRAL SENTI", "NEGATIVE SENTI", "AVG SENTI"),lwd=rep(2,5))
 
 ### INTEGRATED
 
-plot(date, cumsum(RET/OPEN), type="l", col="blue", lwd=2, xlab="",
+rCS = function(x) {
+	rev(cumsum(rev(x)))
+}
+
+limits = range(rCS(RET))
+
+plot(date, rCS(RET), type="l", col="blue", lwd=2, xlab="", ylim=limits,
 	ylab="NORMALIZED RETURNS + SENTIMENT", main="INTEGRATED SENTIMENT AND PRICE")
 par(new=T)
-plot(date, cumsum(POS), type="l", col="green", lwd=2, xlab="",
+plot(date, POS, type="l", col="green", lwd=.5, xlab="",
 	ylab="", main="", axes=F)
 par(new=T)
-plot(date, cumsum(NEG), type="l", col="red", lwd=2, xlab="",
+plot(date, NEG, type="l", col="red", lwd=.5, xlab="",
 	ylab="", main="", axes=F)
 par(new=T)
-plot(date, cumsum(NEUT), type="l", col="gray", lwd=2, xlab="",
+plot(date, NEUT, type="l", col="gray", lwd=.5, xlab="",
 	ylab="", main="", axes=F)
 par(new=T)
-plot(date, cumsum(SENTI), type="l", col="purple", lwd=2, xlab="",
+plot(date, SENTI, type="l", col="purple", lwd=2, xlab="", ylim=limits,
 	ylab="", main="", axes=F)
 legend("top",col=c("blue","green","red","gray","purple"),
 	c("RETURNS", "POSITIVE SENTI", "NEUTRAL SENTI", "NEGATIVE SENTI", "AVG SENTI"),lwd=rep(2,5))
@@ -60,7 +70,7 @@ PP.test(RET)
 
 ### ARIMAX
 
-pRET = RET/OPEN
+pRET = RET
 n = length(RET)
 returns = rev(pRET[1:(n-1)])
 lagReturns = rev(pRET[2:n])
@@ -70,10 +80,10 @@ lagSenti = rev(SENTI[2:n])
 
 model = arima(x = returns, xreg = lagSenti, order = c(3,0,2))
 
-plot(date[1:(n-1)], cumsum(rev(returns)),
-	type="l", ylim=c(0,.02), xlab="", ylab="PERCENT RETURNS", main="INTEGRATED RETURNS")
+plot(date[1:(n-1)], rCS(returns),
+	type="l", ylim=range(rCS(returns)), xlab="", ylab="PERCENT RETURNS", main="INTEGRATED RETURNS")
 par(new=T)
-plot(date[1:(n-1)], cumsum(rev(returns)) + rev(model$residuals),
-	type="l", ylim=c(0,.02), col="red", axes=F, xlab="", ylab="", main="", lwd=.5)
-legend("topright",col=c("black","red"),
+plot(date[1:(n-1)], rCS(returns) + rev(model$residuals),
+	type="l", ylim=range(rCS(returns)), col="red", axes=F, xlab="", ylab="", main="", lwd=.5)
+legend("topleft",col=c("black","red"),
 	c("Integrated Returns", "Fitted ARx(3,0,2)"),lwd=c(1,.5))
