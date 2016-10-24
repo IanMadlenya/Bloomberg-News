@@ -34,7 +34,7 @@ We disambiguate the column names as follows
 
 _If the closing price is not available for any given period, the number in the price field is replaced with a bid/ask average. Bid/ask averages have dashes placed in front of them. These do not incorrectly reflect negative prices; they serve to distinguish bid/ask averages from actual closing prices. If neither the price nor bid/ask average is available, the field is set to zero._
 
-### TRNA NEWS ARCHIVE
+### TRNA News Archive
 
 Reuters NewsScope Archive is a historical database of Reuters’ and select third party news stories. Messages are timestamped to the millisecond and retain all sequencing and control data.
 
