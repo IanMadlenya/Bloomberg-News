@@ -81,6 +81,43 @@ subject matter (e.g. POL AR for politics and Argentina). Mapping TOPIC_CODE to h
 
 **For NoSQL solution.** The archive data may be partitioned by quarter and compressed to `ORC`. In the modeling stages, the relevant periods may be extracted and merged.
 
+### Bloomberg Event-Driven Feeds: News Wire
+
+According to the [Event-Driven Feeds](https://www.bloomberg.com/enterprise/content-data/event-driven-feeds/) product overview, “Bloomberg News moves markets thousands of times a year, providing content on every asset class…the wire publishes more than 5,000 stories a day.“ Files are stored in `XML` format such as `EID34151_yyyymmdd.xml`, where the code `EID34151` marks all news wire data.
+
+Each archive begins with a date field of the form 
+
+```
+<Archive StartTime="2016-05-01T00:00:00.000+00:00"
+
+    EndTime="2016-05-02T00:00:00.000+00:00">
+```
+
+to indicate the news coverage period. Each news item then begins with a content tag of the form
+
+```
+<ContentT EID="34151" CaptureTime="2016-05-01T00:01:03.509+00:00"
+
+        Origin="API" SchemaVersion="2016-01-09T00:00:00.000+00:00">
+```
+
+where `EID` reaffirms the subscription type (in this case News Wire) and other fields provide other metadata. For the following, the term **assigned** indicates assignment by editor while **derived** means inferred using an algorithm. The following attributes are embedded within each story item:
+
+- `<Story ContentType=…>` A Story element with a content type other than "Current" occurs only on story update events, when there is old content in the message.
+- `<Event>` can be one of the following:
+- * `ADD_STORY` contains assigned and derived items
+- * `ADD_1STPASS` the tag used when multiple, intermediate information is sent down the feed at multiple times under different “Actions.”
+- * `UPDATE_ATTRIBUTE` used if an existing story is modified
+- * `DELETE_STORY` used to indicate the deletion of a pre-existing story
+- `<Body>` the body of the news story (typically article text)
+- `<Metadata>` includes `<TimeOfArrival>` and `<Headline>`
+- `<AssignedTickers>` lists assigned tickers with an accompanying relevancy score and additional identifiers
+- `<AssignedTopics>` lists assigned topics with an accompanying relevancy score
+- `<AssignedPeople>` lists assigned people (by ID, not name) and a relevancy score
+- The remaining trailing fields include a boolean `<isMarketMover>` indicating whether the story item has “a high likelihood of causing a significant price move in an equity security,” and a set of unverified tickers (which are likely tickers that did not achieve a high relevance)
+
+There are `Derived` versions of all the `Assigned` fields listed above. A score of 69 or less is considered low, 70-94 is medium, and 95+ is high. 
+
 ### Issues with Spark 1.6 on EC2
 
 **AWS CREDENTIALS BUG**
